@@ -1,0 +1,10 @@
+# Logs Directory
+
+This directory stores application logs when using PM2 or other process managers.
+
+Files in this directory:
+
+- `err.log` - Error logs
+- `out.log` - Standard output logs
+
+These logs are automatically generated and should not be committed to version control.
