@@ -13,25 +13,15 @@ const app = express();
 app.use(helmet());
 app.use(compression());
 
-// CORS configuration
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:4200",
-  "http://localhost:4200",
-  "https://fin-tracker-mu.vercel.app",
-];
-
+// CORS configuration - Allow all origins for public API
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: true, // Allow all origins
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Content-Range", "X-Content-Range"],
+    maxAge: 600, // Cache preflight for 10 minutes
   })
 );
 
