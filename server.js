@@ -12,19 +12,23 @@ const app = express();
    SECURITY MIDDLEWARE
 ========================= */
 // Helmet with relaxed settings
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false,
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 // CORS - Allow all origins
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: false,
-  maxAge: 86400,
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    credentials: false,
+    maxAge: 86400,
+  })
+);
 
 // Handle preflight
 app.options("*", cors());
@@ -58,18 +62,35 @@ const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
   console.error("❌ MONGO_URI environment variable is not set!");
-  process.exit(1);
 }
 
-mongoose
-  .connect(MONGO_URI, {
-    serverSelectionTimeoutMS: 5000,
-  })
-  .then(() => console.log("✅ MongoDB connected successfully"))
-  .catch((err) => {
+// MongoDB connection with retry logic
+const connectDB = async () => {
+  const options = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    maxPoolSize: 10,
+    retryWrites: true,
+  };
+
+  try {
+    await mongoose.connect(MONGO_URI, options);
+    console.log("✅ MongoDB connected successfully");
+  } catch (err) {
     console.error("❌ MongoDB connection error:", err.message);
-    process.exit(1);
-  });
+    console.error("Retrying in 5 seconds...");
+    setTimeout(connectDB, 5000);
+  }
+};
+
+// Only connect if MONGO_URI is provided
+if (MONGO_URI) {
+  connectDB();
+} else {
+  console.warn("⚠️ Running without database connection");
+}
 
 /* =========================
    HEALTH CHECK
@@ -87,7 +108,8 @@ app.get("/api/health", (req, res) => {
     success: true,
     message: "FinTrack API is running",
     environment: process.env.NODE_ENV || "development",
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    database:
+      mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     timestamp: new Date().toISOString(),
   });
 });
