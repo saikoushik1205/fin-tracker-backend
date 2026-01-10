@@ -162,10 +162,12 @@ app.get("/api/health", (req, res) => {
 ========================= */
 // Middleware to check DB connection on critical routes
 const checkDB = (req, res, next) => {
-  if (mongoose.connection.readyState !== 1) {
+  const dbState = mongoose.connection.readyState;
+  // Allow if connected (1) or connecting (2), block only if disconnected (0) or disconnecting (3)
+  if (dbState === 0 || dbState === 3) {
     return res.status(503).json({
       success: false,
-      message: "Database temporarily unavailable. Please try again.",
+      message: "Database temporarily unavailable. Please try again in a moment.",
     });
   }
   next();
@@ -174,11 +176,11 @@ const checkDB = (req, res, next) => {
 /* =========================
    API ROUTES
 ========================= */
-app.use("/api/auth", authLimiter, checkDB, require("./src/routes/auth"));
-app.use("/api/persons", checkDB, require("./src/routes/persons"));
-app.use("/api/transactions", checkDB, require("./src/routes/transactions"));
-app.use("/api/cash-bank", checkDB, require("./src/routes/cashBank"));
-app.use("/api/dashboard", checkDB, require("./src/routes/dashboard"));
+app.use("/api/auth", authLimiter, require("./src/routes/auth"));
+app.use("/api/persons", require("./src/routes/persons"));
+app.use("/api/transactions", require("./src/routes/transactions"));
+app.use("/api/cash-bank", require("./src/routes/cashBank"));
+app.use("/api/dashboard", require("./src/routes/dashboard"));
 
 /* =========================
    404 HANDLER
@@ -196,7 +198,7 @@ app.use((req, res) => {
 ========================= */
 app.use((err, req, res, next) => {
   console.error("Server Error:", err);
-  
+
   // Handle specific MongoDB errors
   if (err.name === "MongooseError" || err.name === "MongoError") {
     return res.status(503).json({
