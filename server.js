@@ -4,45 +4,46 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const helmet = require("helmet");
-const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
-app.use(compression());
+/* =========================
+   SECURITY MIDDLEWARE
+========================= */
+// Helmet with relaxed settings
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}));
 
-// CORS configuration - Allow all origins for public API
-app.use(
-  cors({
-    origin: true, // Allow all origins
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: ["Content-Range", "X-Content-Range"],
-    maxAge: 600, // Cache preflight for 10 minutes
-  })
-);
+// CORS - Allow all origins
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  credentials: false,
+  maxAge: 86400,
+}));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-});
-app.use("/api/", limiter);
-
-// Auth rate limiting
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  skipSuccessfulRequests: true,
-});
+// Handle preflight
+app.options("*", cors());
 
 /* =========================
    RATE LIMITING
 ========================= */
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: "Too many requests, please try again later.",
+});
 app.use("/api/", limiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+});
 
 /* =========================
    BODY PARSERS
@@ -53,19 +54,43 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 /* =========================
    MONGODB CONNECTION
 ========================= */
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log("✅ MongoDB connected successfully");
-  } catch (err) {
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error("❌ MONGO_URI environment variable is not set!");
+  process.exit(1);
+}
+
+mongoose
+  .connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 5000,
+  })
+  .then(() => console.log("✅ MongoDB connected successfully"))
+  .catch((err) => {
     console.error("❌ MongoDB connection error:", err.message);
     process.exit(1);
-  }
-};
+  });
 
-connectDB();
+/* =========================
+   HEALTH CHECK
+========================= */
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "FinTrack API is running",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "FinTrack API is running",
+    environment: process.env.NODE_ENV || "development",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 /* =========================
    API ROUTES
@@ -77,26 +102,13 @@ app.use("/api/cash-bank", require("./src/routes/cashBank"));
 app.use("/api/dashboard", require("./src/routes/dashboard"));
 
 /* =========================
-   HEALTH CHECK
-========================= */
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "FinTrack API is running",
-    environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toISOString(),
-    database:
-      mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-  });
-});
-
-/* =========================
    404 HANDLER
 ========================= */
-app.use("/api/*", (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: "API endpoint not found",
+    message: "Route not found",
+    path: req.path,
   });
 });
 

@@ -11,7 +11,7 @@ MONGO_URI=mongodb+srv://koushiksai242_db_user:Koushiksai2006@financialtracker-01
 JWT_SECRET=d84101ea1d3a03e23635a15f89bc7903f513c9e8cdd9ea080da1593a6f6280193b9d0f06c643224ea1a5e4bb2544017cf819897946521898849945a5ef595b39
 JWT_EXPIRES_IN=12h
 NODE_ENV=production
-FRONTEND_URL=https://your-frontend-url.vercel.app
+FRONTEND_URL=https://finance-tracker-frontend-phi.vercel.app
 ```
 
 ## Deploy to Vercel
