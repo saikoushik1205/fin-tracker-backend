@@ -63,11 +63,14 @@ exports.getDashboardStats = async (req, res) => {
         calculateSectionTotal(interestPersons),
       ]);
 
-    // Calculate net balance: Total Lended - Total Borrowed
-    const netBalance = lending.total - borrowing.total;
-
-    // Total available cash
+    // Calculate net balance: (Cash+Bank) + Pending Lent - Pending Borrowed + Earnings - Expenses
     const totalCash = (cashBank?.cash || 0) + (cashBank?.bank || 0);
+    const netBalance =
+      totalCash +
+      lending.pending -
+      borrowing.pending +
+      earnings.completed -
+      expenses.completed;
 
     res.json({
       success: true,
@@ -86,8 +89,13 @@ exports.getDashboardStats = async (req, res) => {
         summary: {
           totalLent: lending.total,
           totalBorrowed: borrowing.total,
+          pendingLent: lending.pending,
+          pendingBorrowed: borrowing.pending,
+          returnedLent: lending.completed,
+          returnedBorrowed: borrowing.completed,
           availableCash: totalCash,
-          totalExpenses: expenses.total,
+          totalEarnings: earnings.completed,
+          totalExpenses: expenses.completed,
         },
       },
     });
