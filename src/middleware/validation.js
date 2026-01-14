@@ -37,9 +37,12 @@ const personValidation = {
     body("sectionType")
       .isIn(["lending", "borrowing", "earnings", "expenses", "interest"])
       .withMessage("Invalid section type"),
-    body("email").optional().isEmail().withMessage("Invalid email format"),
+    body("email")
+      .optional({ checkFalsy: true })
+      .isEmail()
+      .withMessage("Invalid email format"),
     body("phone")
-      .optional()
+      .optional({ checkFalsy: true })
       .matches(/^[0-9+\-\s()]*$/)
       .withMessage("Invalid phone format"),
   ]),
@@ -51,7 +54,14 @@ const personValidation = {
       .trim()
       .isLength({ min: 2, max: 100 })
       .withMessage("Name must be between 2 and 100 characters"),
-    body("email").optional().isEmail().withMessage("Invalid email format"),
+    body("email")
+      .optional({ checkFalsy: true })
+      .isEmail()
+      .withMessage("Invalid email format"),
+    body("phone")
+      .optional({ checkFalsy: true })
+      .matches(/^[0-9+\-\s()]*$/)
+      .withMessage("Invalid phone format"),
   ]),
 };
 

@@ -167,7 +167,8 @@ const checkDB = (req, res, next) => {
   if (dbState === 0 || dbState === 3) {
     return res.status(503).json({
       success: false,
-      message: "Database temporarily unavailable. Please try again in a moment.",
+      message:
+        "Database temporarily unavailable. Please try again in a moment.",
     });
   }
   next();
