@@ -63,14 +63,11 @@ exports.getDashboardStats = async (req, res) => {
         calculateSectionTotal(interestPersons),
       ]);
 
-    // Calculate net balance: (Cash+Bank) + Pending Lent - Pending Borrowed + Earnings - Expenses
+    // Calculate net balance: Pending Lending - Pending Borrowing
+    const netBalance = lending.pending - borrowing.pending;
+
+    // Total available cash
     const totalCash = (cashBank?.cash || 0) + (cashBank?.bank || 0);
-    const netBalance =
-      totalCash +
-      lending.pending -
-      borrowing.pending +
-      earnings.completed -
-      expenses.completed;
 
     res.json({
       success: true,
