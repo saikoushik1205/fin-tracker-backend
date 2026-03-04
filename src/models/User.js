@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Generate unique userId before first save
@@ -64,8 +64,5 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
-
-// Index for faster queries
-userSchema.index({ email: 1 });
 
 module.exports = mongoose.model("User", userSchema);

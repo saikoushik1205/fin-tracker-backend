@@ -16,7 +16,7 @@ app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
-  })
+  }),
 );
 
 // CORS - Allow all origins
@@ -27,7 +27,7 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     credentials: false,
     maxAge: 86400,
-  })
+  }),
 );
 
 // Handle preflight
@@ -62,13 +62,12 @@ const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
   console.error("❌ MONGO_URI environment variable is not set!");
+  process.exit(1);
 }
 
 // MongoDB connection with permanent resilience
 const connectDB = async () => {
   const options = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000,
     maxPoolSize: 10,
@@ -85,6 +84,10 @@ const connectDB = async () => {
     console.log("✅ MongoDB connected successfully");
   } catch (err) {
     console.error("❌ MongoDB connection error:", err.message);
+    console.error(
+      "Connection string:",
+      MONGO_URI.replace(/:[^:]+@/, ":<credentials>@"),
+    );
     console.error("Retrying in 5 seconds...");
     setTimeout(connectDB, 5000);
   }
@@ -96,7 +99,7 @@ mongoose.connection.on("connected", () => {
 });
 
 mongoose.connection.on("error", (err) => {
-  console.error("❌ MongoDB connection error:", err);
+  console.error("❌ MongoDB connection error:", err.message);
 });
 
 mongoose.connection.on("disconnected", () => {
@@ -236,3 +239,20 @@ app.use((err, req, res, next) => {
    EXPORT FOR VERCEL
 ========================= */
 module.exports = app;
+
+/* =========================
+   START SERVER LOCALLY
+========================= */
+// Only start server if not running in Vercel
+if (process.env.VERCEL !== "1") {
+  connectDB();
+
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 API available at http://localhost:${PORT}/api`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+  });
+} else {
+  connectDB();
+}
