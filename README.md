@@ -30,3 +30,15 @@ npm start
 ```
 
 API will be available at: http://localhost:3000/api
+
+--
+
+Project layout notes:
+
+- `server.js` - backend entrypoint (keep at root)
+- `src/` - source code for controllers, models, routes, middleware
+- `scripts/` - maintenance scripts (seed-test-user.js, generateSecret.js)
+- `ops/` - deployment/runtime configs (ecosystem.config.js, vercel.json)
+- `docs/` - operational docs and notes
+
+This layout keeps runtime files at the root while grouping operational and maintenance files into `ops/` and `scripts/` respectively.
