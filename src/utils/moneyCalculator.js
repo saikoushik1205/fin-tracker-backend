@@ -15,9 +15,29 @@ const fromPaise = (paise) => {
 };
 
 /**
+ * Checks whether a transaction is a settlement / repayment
+ */
+const isSettlementTransaction = (t) => {
+  if (!t) return false;
+  const type = (t.type || "").trim().toLowerCase();
+  if (type === "repayment") return true;
+  const remarks = (t.remarks || "").trim();
+  if (
+    remarks.startsWith("Settlement received") ||
+    remarks.startsWith("Settlement repaid") ||
+    remarks.startsWith("Settlement paid") ||
+    remarks.includes("Settled via") ||
+    remarks.includes("Repaid via")
+  ) {
+    return true;
+  }
+  return false;
+};
+
+/**
  * Calculates person/ledger totals:
- * - Total: Sum of active transactions
- * - Completed: Sum of completed/returned payments (including any legacy partial payments treated as settled)
+ * - Total: Sum of active transactions (excluding separate settlement entries)
+ * - Completed: Sum of settlements + legacy completed transactions
  * - Pending: Remaining unpaid balance (Total - Completed)
  * 
  * @param {Array} transactions Array of transaction objects
@@ -44,36 +64,29 @@ const calculatePersonStats = (transactions = []) => {
     };
   }
 
-  let totalPaise = 0;
-  let completedPaise = 0;
-  let pendingPaise = 0;
+  let loansPaise = 0;
+  let settlementsPaise = 0;
+  let legacyCompletedPaise = 0;
 
   for (const t of activeTransactions) {
     const amtPaise = toPaise(t.amount);
-    totalPaise += amtPaise;
 
-    if (t.status === "completed" || t.status === "partial") {
-      completedPaise += amtPaise;
-    } else if (t.status === "pending") {
-      pendingPaise += amtPaise;
-    }
-  }
-
-  // Enforce invariant: Pending = Total - Completed
-  if (totalPaise > 0) {
-    if (completedPaise === 0 && pendingPaise > 0 && pendingPaise < totalPaise) {
-      completedPaise = totalPaise - pendingPaise;
+    if (isSettlementTransaction(t)) {
+      settlementsPaise += amtPaise;
     } else {
-      pendingPaise = Math.max(0, totalPaise - completedPaise);
+      loansPaise += amtPaise;
+      if (t.status === "completed" || t.status === "partial") {
+        legacyCompletedPaise += amtPaise;
+      }
     }
-  } else {
-    completedPaise = 0;
-    pendingPaise = 0;
   }
+
+  const completedPaise = settlementsPaise + legacyCompletedPaise;
+  const pendingPaise = Math.max(0, loansPaise - completedPaise);
 
   return {
     transactionCount: activeTransactions.length,
-    total: fromPaise(totalPaise),
+    total: fromPaise(loansPaise),
     completed: fromPaise(completedPaise),
     pending: fromPaise(pendingPaise),
   };
@@ -112,6 +125,7 @@ const aggregateSectionTotals = (persons = []) => {
 module.exports = {
   toPaise,
   fromPaise,
+  isSettlementTransaction,
   calculatePersonStats,
   aggregateSectionTotals,
 };
