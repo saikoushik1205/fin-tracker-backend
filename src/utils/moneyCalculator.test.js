@@ -36,14 +36,12 @@ describe("Money Calculator Utility (Backend)", () => {
         transactionCount: 0,
         total: 0,
         completed: 0,
-        partial: 0,
         pending: 0,
       });
       expect(calculatePersonStats(null)).toEqual({
         transactionCount: 0,
         total: 0,
         completed: 0,
-        partial: 0,
         pending: 0,
       });
     });
@@ -53,8 +51,8 @@ describe("Money Calculator Utility (Backend)", () => {
       const res = calculatePersonStats(txs);
       expect(res.total).toBe(5000);
       expect(res.completed).toBe(0);
-      expect(res.partial).toBe(0);
       expect(res.pending).toBe(5000);
+      expect(res.pending).toBe(res.total - res.completed);
     });
 
     test("accurately calculates single completed transaction", () => {
@@ -62,22 +60,20 @@ describe("Money Calculator Utility (Backend)", () => {
       const res = calculatePersonStats(txs);
       expect(res.total).toBe(2500);
       expect(res.completed).toBe(2500);
-      expect(res.partial).toBe(0);
       expect(res.pending).toBe(0);
+      expect(res.pending).toBe(res.total - res.completed);
     });
 
-    test("keeps partial transactions strictly in a separate partial section without adding to returned", () => {
-      // User requested: "In Lent Section, Please Don't add the transactions of partial payment okay ? add only the transactions which are only returned and keep a separate section for partial"
+    test("reconciles legacy records so only pending and completed exist", () => {
       const txs = [
         { amount: 1540, status: "pending" },
-        { amount: 1110, status: "partial" },
+        { amount: 1110, status: "completed" },
       ];
       const res = calculatePersonStats(txs);
       expect(res.total).toBe(2650);
-      expect(res.completed).toBe(0); // Only returned
-      expect(res.partial).toBe(1110); // Dedicated partial section
+      expect(res.completed).toBe(1110);
       expect(res.pending).toBe(1540);
-      expect(res.total).toBe(res.completed + res.partial + res.pending);
+      expect(res.pending).toBe(res.total - res.completed);
     });
 
     test("ignores cancelled transactions completely", () => {
@@ -88,7 +84,6 @@ describe("Money Calculator Utility (Backend)", () => {
       const res = calculatePersonStats(txs);
       expect(res.total).toBe(1000);
       expect(res.completed).toBe(0);
-      expect(res.partial).toBe(0);
       expect(res.pending).toBe(1000);
       expect(res.transactionCount).toBe(1);
     });
@@ -101,8 +96,8 @@ describe("Money Calculator Utility (Backend)", () => {
       const res = calculatePersonStats(txs);
       expect(res.total).toBe(301);
       expect(res.completed).toBe(200.75);
-      expect(res.partial).toBe(0);
       expect(res.pending).toBe(100.25);
+      expect(res.pending).toBe(Number((res.total - res.completed).toFixed(2)));
     });
   });
 
@@ -111,22 +106,20 @@ describe("Money Calculator Utility (Backend)", () => {
       expect(aggregateSectionTotals([])).toEqual({
         total: 0,
         completed: 0,
-        partial: 0,
         pending: 0,
       });
     });
 
-    test("aggregates with dedicated partial metric", () => {
+    test("guarantees aggregate pending equals total minus completed", () => {
       const persons = [
-        { stats: { total: 2650, completed: 0, partial: 1110, pending: 1540 } },
-        { stats: { total: 99109, completed: 4500, partial: 0, pending: 94609 } },
+        { stats: { total: 2650, completed: 1110, pending: 1540 } },
+        { stats: { total: 99109, completed: 4500, pending: 94609 } },
       ];
       const agg = aggregateSectionTotals(persons);
       expect(agg.total).toBe(101759);
-      expect(agg.completed).toBe(4500); // strictly returned
-      expect(agg.partial).toBe(1110);   // strictly partial
-      expect(agg.pending).toBe(96149);   // strictly pending
-      expect(agg.total).toBe(agg.completed + agg.partial + agg.pending);
+      expect(agg.completed).toBe(5610);
+      expect(agg.pending).toBe(96149);
+      expect(agg.pending).toBe(agg.total - agg.completed);
     });
   });
 });

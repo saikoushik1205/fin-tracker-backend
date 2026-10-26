@@ -1,6 +1,7 @@
 /**
  * Centralized Money Calculation Utility
- * Uses integer paise internally to avoid floating-point errors.
+ * Strictly uses integer paise internally to avoid floating-point errors.
+ * Supported financial statuses: Pending and Completed (Returned).
  */
 
 const toPaise = (amount) => {
@@ -14,13 +15,13 @@ const fromPaise = (paise) => {
 };
 
 /**
- * Calculates person/ledger totals adhering strictly to:
- * - Returned: Only completed transactions
- * - Partial: Only partial payment transactions
- * - Pending: Remaining unpaid balance (Total - Returned - Partial)
+ * Calculates person/ledger totals:
+ * - Total: Sum of active transactions
+ * - Completed: Sum of completed/returned payments (including any legacy partial payments treated as settled)
+ * - Pending: Remaining unpaid balance (Total - Completed)
  * 
  * @param {Array} transactions Array of transaction objects
- * @returns {{ total: number, completed: number, partial: number, pending: number, transactionCount: number }}
+ * @returns {{ total: number, completed: number, pending: number, transactionCount: number }}
  */
 const calculatePersonStats = (transactions = []) => {
   if (!Array.isArray(transactions) || transactions.length === 0) {
@@ -28,7 +29,6 @@ const calculatePersonStats = (transactions = []) => {
       transactionCount: 0,
       total: 0,
       completed: 0,
-      partial: 0,
       pending: 0,
     };
   }
@@ -40,70 +40,71 @@ const calculatePersonStats = (transactions = []) => {
       transactionCount: 0,
       total: 0,
       completed: 0,
-      partial: 0,
       pending: 0,
     };
   }
 
   let totalPaise = 0;
-  let explicitCompletedPaise = 0;
-  let explicitPendingPaise = 0;
-  let partialPaise = 0;
+  let completedPaise = 0;
+  let pendingPaise = 0;
 
   for (const t of activeTransactions) {
     const amtPaise = toPaise(t.amount);
     totalPaise += amtPaise;
 
-    if (t.status === "completed") {
-      explicitCompletedPaise += amtPaise;
+    if (t.status === "completed" || t.status === "partial") {
+      completedPaise += amtPaise;
     } else if (t.status === "pending") {
-      explicitPendingPaise += amtPaise;
-    } else if (t.status === "partial") {
-      partialPaise += amtPaise;
+      pendingPaise += amtPaise;
     }
   }
 
-  // Pending is either explicit pending, or derived from total - completed - partial
-  let pendingPaise = Math.max(0, totalPaise - explicitCompletedPaise - partialPaise);
+  // Enforce invariant: Pending = Total - Completed
+  if (totalPaise > 0) {
+    if (completedPaise === 0 && pendingPaise > 0 && pendingPaise < totalPaise) {
+      completedPaise = totalPaise - pendingPaise;
+    } else {
+      pendingPaise = Math.max(0, totalPaise - completedPaise);
+    }
+  } else {
+    completedPaise = 0;
+    pendingPaise = 0;
+  }
 
   return {
     transactionCount: activeTransactions.length,
     total: fromPaise(totalPaise),
-    completed: fromPaise(explicitCompletedPaise),
-    partial: fromPaise(partialPaise),
+    completed: fromPaise(completedPaise),
     pending: fromPaise(pendingPaise),
   };
 };
 
 /**
  * Aggregates section totals across persons:
- * Total = Returned (Completed) + Partial + Pending
+ * Total = Completed + Pending
  * 
  * @param {Array} persons Array of person objects with stats
- * @returns {{ total: number, completed: number, partial: number, pending: number }}
+ * @returns {{ total: number, completed: number, pending: number }}
  */
 const aggregateSectionTotals = (persons = []) => {
   if (!Array.isArray(persons) || persons.length === 0) {
-    return { total: 0, completed: 0, partial: 0, pending: 0 };
+    return { total: 0, completed: 0, pending: 0 };
   }
 
   let totalPaise = 0;
   let completedPaise = 0;
-  let partialPaise = 0;
 
   for (const person of persons) {
     const stats = person.stats || {};
     totalPaise += toPaise(stats.total);
     completedPaise += toPaise(stats.completed);
-    partialPaise += toPaise(stats.partial);
   }
 
-  const pendingPaise = Math.max(0, totalPaise - completedPaise - partialPaise);
+  const pendingPaise = Math.max(0, totalPaise - completedPaise);
 
   return {
     total: fromPaise(totalPaise),
     completed: fromPaise(completedPaise),
-    partial: fromPaise(partialPaise),
     pending: fromPaise(pendingPaise),
   };
 };
