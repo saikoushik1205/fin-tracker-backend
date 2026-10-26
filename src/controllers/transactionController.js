@@ -59,7 +59,7 @@ exports.createTransaction = async (req, res) => {
       date: date || new Date(),
       amount,
       remarks: remarks || "",
-      status: status || "completed",
+      status: status === "pending" ? "pending" : "completed",
       type: type || "",
       metadata: metadata || {},
     });
