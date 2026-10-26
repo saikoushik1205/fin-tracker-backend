@@ -14,11 +14,13 @@ const fromPaise = (paise) => {
 };
 
 /**
- * Calculates person/ledger totals adhering strictly to the invariant:
- * Pending = Total - Returned
+ * Calculates person/ledger totals adhering strictly to:
+ * - Returned: Only completed transactions
+ * - Partial: Only partial payment transactions
+ * - Pending: Remaining unpaid balance (Total - Returned - Partial)
  * 
  * @param {Array} transactions Array of transaction objects
- * @returns {{ total: number, completed: number, pending: number, transactionCount: number }}
+ * @returns {{ total: number, completed: number, partial: number, pending: number, transactionCount: number }}
  */
 const calculatePersonStats = (transactions = []) => {
   if (!Array.isArray(transactions) || transactions.length === 0) {
@@ -26,6 +28,7 @@ const calculatePersonStats = (transactions = []) => {
       transactionCount: 0,
       total: 0,
       completed: 0,
+      partial: 0,
       pending: 0,
     };
   }
@@ -37,6 +40,7 @@ const calculatePersonStats = (transactions = []) => {
       transactionCount: 0,
       total: 0,
       completed: 0,
+      partial: 0,
       pending: 0,
     };
   }
@@ -59,60 +63,48 @@ const calculatePersonStats = (transactions = []) => {
     }
   }
 
-  let completedPaise = explicitCompletedPaise + partialPaise;
-  let pendingPaise = explicitPendingPaise;
-
-  // Reconcile invariant: Pending must equal Total - Returned
-  if (totalPaise > 0) {
-    if (completedPaise === 0 && pendingPaise > 0 && pendingPaise < totalPaise) {
-      // Discrepancy where returned wasn't explicitly flagged
-      completedPaise = totalPaise - pendingPaise;
-    } else {
-      pendingPaise = Math.max(0, totalPaise - completedPaise);
-    }
-  } else {
-    completedPaise = 0;
-    pendingPaise = 0;
-  }
+  // Pending is either explicit pending, or derived from total - completed - partial
+  let pendingPaise = Math.max(0, totalPaise - explicitCompletedPaise - partialPaise);
 
   return {
     transactionCount: activeTransactions.length,
     total: fromPaise(totalPaise),
-    completed: fromPaise(completedPaise),
+    completed: fromPaise(explicitCompletedPaise),
+    partial: fromPaise(partialPaise),
     pending: fromPaise(pendingPaise),
   };
 };
 
 /**
- * Aggregates section totals across persons adhering to the invariant:
- * Total = Returned + Pending
+ * Aggregates section totals across persons:
+ * Total = Returned (Completed) + Partial + Pending
  * 
  * @param {Array} persons Array of person objects with stats
- * @returns {{ total: number, completed: number, pending: number }}
+ * @returns {{ total: number, completed: number, partial: number, pending: number }}
  */
 const aggregateSectionTotals = (persons = []) => {
   if (!Array.isArray(persons) || persons.length === 0) {
-    return { total: 0, completed: 0, pending: 0 };
+    return { total: 0, completed: 0, partial: 0, pending: 0 };
   }
 
   let totalPaise = 0;
   let completedPaise = 0;
-  let pendingPaise = 0;
+  let partialPaise = 0;
 
   for (const person of persons) {
     const stats = person.stats || {};
     totalPaise += toPaise(stats.total);
     completedPaise += toPaise(stats.completed);
-    pendingPaise += toPaise(stats.pending);
+    partialPaise += toPaise(stats.partial);
   }
 
-  // Ensure invariant holds across the aggregate
-  const reconciledPendingPaise = Math.max(0, totalPaise - completedPaise);
+  const pendingPaise = Math.max(0, totalPaise - completedPaise - partialPaise);
 
   return {
     total: fromPaise(totalPaise),
     completed: fromPaise(completedPaise),
-    pending: fromPaise(reconciledPendingPaise),
+    partial: fromPaise(partialPaise),
+    pending: fromPaise(pendingPaise),
   };
 };
 
