@@ -1,22 +1,14 @@
 /**
- * SCRIPT: Merge Tatayya(Latest) into Tatayya & Delete Tatayya(Latest)
+ * SCRIPT: Merge Tatayya(Latest) & Ammama(II) into Tatayya
  * 
  * Target Person:
  *   Name:  Tatayya
  *   Email: pcmouli451@gmail.com
  *   Phone: 9494230451
  * 
- * Source Person to Delete:
- *   Name:  Tatayya(Latest)
- *   Email: pcmouli451@gmail.com
- *   Phone: 9494230451
- * 
- * 5 Transactions to add/transfer (Total: Rs. 2,650.00):
- *   1. 04/10/2026 - Rs. 1,000 - "Oil- 5ltr"
- *   2. 21/09/2026 - Rs. 540 - "Oil Packets - 4"
- *   3. 20/09/2026 - Rs. 490 - "Wheat - 10Kg"
- *   4. 20/09/2026 - Rs. 300 - "Jaggery"
- *   5. 20/09/2026 - Rs. 320 - "Cafe Niloufer- Tea powder"
+ * Sources Deleted:
+ *   1. Tatayya(Latest) (5 transactions - Rs. 2,650)
+ *   2. Ammama(II) (3 transactions - Rs. 1,040)
  */
 
 const dns = require("dns");
@@ -24,15 +16,7 @@ try {
   dns.setServers(["8.8.8.8", "8.8.4.4"]);
 } catch (e) {}
 
-const mongoose = require("mongoose");
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "../.env") });
-
-const Person = require("../src/models/Person");
-const Transaction = require("../src/models/Transaction");
-const User = require("../src/models/User");
-
-const TRANSACTIONS_DATA = [
+const TATAYYA_LATEST_TXS = [
   {
     date: new Date("2026-10-04T10:00:00.000Z"),
     amount: 1000,
@@ -70,4 +54,28 @@ const TRANSACTIONS_DATA = [
   },
 ];
 
-module.exports = { TRANSACTIONS_DATA };
+const AMMAMA_2_TXS = [
+  {
+    date: new Date("2026-07-11T10:00:00.000Z"),
+    amount: 300,
+    status: "pending",
+    type: "loan",
+    remarks: "Cafe Nilofer Tea Powder",
+  },
+  {
+    date: new Date("2026-07-11T10:00:00.000Z"),
+    amount: 350,
+    status: "pending",
+    type: "loan",
+    remarks: "Ajio Order",
+  },
+  {
+    date: new Date("2026-07-11T10:00:00.000Z"),
+    amount: 390,
+    status: "pending",
+    type: "loan",
+    remarks: "Sandals Order",
+  },
+];
+
+module.exports = { TATAYYA_LATEST_TXS, AMMAMA_2_TXS };
