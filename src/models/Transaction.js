@@ -38,18 +38,13 @@ const transactionSchema = new mongoose.Schema(
     type: {
       type: String,
       trim: true,
-      default: "", // "repayment", "loan", or sub-category
+      default: "", // Can be used for sub-categorization
     },
     metadata: {
       interestRate: Number, // For interest section
       principal: Number,
       category: String,
       paymentMethod: String,
-      loanId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Transaction",
-      },
-      note: String,
     },
   },
   {

@@ -1,17 +1,7 @@
 /**
- * Centralized Money Calculation Utility (Backend)
+ * Centralized Money Calculation Utility
  * Strictly uses integer paise internally to avoid floating-point errors.
- * 
- * Rules:
- * 1. Total = sum of loans.
- * 2. Returned = sum of repayments.
- * 3. Pending = Math.max(0, Total - Returned).
- * 4. Advance = Math.max(0, Returned - Total).
- * 
- * Includes clearly marked TEMPORARY LEGACY ADAPTER to handle historical rows:
- * - Legacy rows with status COMPLETED loans
- * - Legacy split loans (containing "(Remaining pending after partial settlement)")
- * - Legacy settlement rows (containing "Settlement received" or "Settled via")
+ * Supported financial statuses: Pending and Completed (Returned).
  */
 
 const toPaise = (amount) => {
@@ -24,57 +14,14 @@ const fromPaise = (paise) => {
   return Number((paise / 100).toFixed(2));
 };
 
-/* =========================================================================
-   TEMPORARY LEGACY ADAPTER
-   Identifies and classifies historical transactions created before the clean
-   non-destructive ledger model.
-   ========================================================================= */
-
 /**
- * Checks whether a transaction is a repayment record:
- * - New clean model: type === 'repayment'
- * - Legacy model: remarks start with "Settlement received" or contain "Settled via"
- *   when created as a separate settlement entry.
- */
-const isRepayment = (t) => {
-  if (!t) return false;
-  const type = (t.type || "").trim().toLowerCase();
-  if (type === "repayment") return true;
-
-  const remarks = (t.remarks || "").trim();
-  if (remarks.startsWith("Settlement received")) return true;
-
-  return false;
-};
-
-/**
- * Checks whether a transaction is a legacy loan that was split in-place
- * by the previous settle-up handler.
- */
-const isLegacySplitLoan = (t) => {
-  if (!t || !t.remarks) return false;
-  return t.remarks.includes("(Remaining pending after partial settlement)");
-};
-
-/**
- * Checks whether a transaction is a legacy loan marked "completed"
- * directly (without a separate repayment record).
- */
-const isLegacyCompletedLoan = (t) => {
-  if (!t) return false;
-  if (isRepayment(t)) return false;
-  return t.status === "completed";
-};
-
-/**
- * Calculates person/ledger totals using integer paise:
- * - Total: Sum of all loans (restoring legacy split amounts if applicable)
- * - Returned: Sum of all repayments + legacy completed loans
- * - Pending: Remaining unpaid balance (max(0, Total - Returned))
- * - Advance: Overpayment amount if repayments exceed loans (max(0, Returned - Total))
+ * Calculates person/ledger totals:
+ * - Total: Sum of active transactions
+ * - Completed: Sum of completed/returned payments (including any legacy partial payments treated as settled)
+ * - Pending: Remaining unpaid balance (Total - Completed)
  * 
  * @param {Array} transactions Array of transaction objects
- * @returns {{ total: number, completed: number, pending: number, advance: number, transactionCount: number }}
+ * @returns {{ total: number, completed: number, pending: number, transactionCount: number }}
  */
 const calculatePersonStats = (transactions = []) => {
   if (!Array.isArray(transactions) || transactions.length === 0) {
@@ -83,7 +30,6 @@ const calculatePersonStats = (transactions = []) => {
       total: 0,
       completed: 0,
       pending: 0,
-      advance: 0,
     };
   }
 
@@ -95,69 +41,63 @@ const calculatePersonStats = (transactions = []) => {
       total: 0,
       completed: 0,
       pending: 0,
-      advance: 0,
     };
   }
 
-  let loansPaise = 0;
-  let repaymentsPaise = 0;
+  let totalPaise = 0;
+  let completedPaise = 0;
+  let pendingPaise = 0;
 
   for (const t of activeTransactions) {
     const amtPaise = toPaise(t.amount);
+    totalPaise += amtPaise;
 
-    if (isRepayment(t)) {
-      // Repayment record
-      repaymentsPaise += amtPaise;
-    } else if (isLegacyCompletedLoan(t)) {
-      // Legacy loan that was marked completed directly in place.
-      // Contributes to total lent and is fully accounted as returned.
-      loansPaise += amtPaise;
-      repaymentsPaise += amtPaise;
-    } else {
-      // Active loan (Clean loan or Legacy Split loan)
-      loansPaise += amtPaise;
+    if (t.status === "completed" || t.status === "partial") {
+      completedPaise += amtPaise;
+    } else if (t.status === "pending") {
+      pendingPaise += amtPaise;
     }
   }
 
-  // Enforce invariant:
-  // Pending = max(0, Total - Returned)
-  // Advance = max(0, Returned - Total)
-  const pendingPaise = Math.max(0, loansPaise - repaymentsPaise);
-  const advancePaise = Math.max(0, repaymentsPaise - loansPaise);
+  // Enforce invariant: Pending = Total - Completed
+  if (totalPaise > 0) {
+    if (completedPaise === 0 && pendingPaise > 0 && pendingPaise < totalPaise) {
+      completedPaise = totalPaise - pendingPaise;
+    } else {
+      pendingPaise = Math.max(0, totalPaise - completedPaise);
+    }
+  } else {
+    completedPaise = 0;
+    pendingPaise = 0;
+  }
 
   return {
     transactionCount: activeTransactions.length,
-    total: fromPaise(loansPaise),
-    completed: fromPaise(repaymentsPaise),
+    total: fromPaise(totalPaise),
+    completed: fromPaise(completedPaise),
     pending: fromPaise(pendingPaise),
-    advance: fromPaise(advancePaise),
   };
 };
 
 /**
  * Aggregates section totals across persons:
- * Total = sum of totals
- * Completed = sum of completed
- * Pending = max(0, Total - Completed)
- * Advance = sum of advances
+ * Total = Completed + Pending
  * 
  * @param {Array} persons Array of person objects with stats
- * @returns {{ total: number, completed: number, pending: number, advance: number }}
+ * @returns {{ total: number, completed: number, pending: number }}
  */
 const aggregateSectionTotals = (persons = []) => {
   if (!Array.isArray(persons) || persons.length === 0) {
-    return { total: 0, completed: 0, pending: 0, advance: 0 };
+    return { total: 0, completed: 0, pending: 0 };
   }
 
   let totalPaise = 0;
   let completedPaise = 0;
-  let advancePaise = 0;
 
   for (const person of persons) {
     const stats = person.stats || {};
     totalPaise += toPaise(stats.total);
     completedPaise += toPaise(stats.completed);
-    advancePaise += toPaise(stats.advance);
   }
 
   const pendingPaise = Math.max(0, totalPaise - completedPaise);
@@ -166,16 +106,12 @@ const aggregateSectionTotals = (persons = []) => {
     total: fromPaise(totalPaise),
     completed: fromPaise(completedPaise),
     pending: fromPaise(pendingPaise),
-    advance: fromPaise(advancePaise),
   };
 };
 
 module.exports = {
   toPaise,
   fromPaise,
-  isRepayment,
-  isLegacySplitLoan,
-  isLegacyCompletedLoan,
   calculatePersonStats,
   aggregateSectionTotals,
 };
