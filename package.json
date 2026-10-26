@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "prod": "NODE_ENV=production node server.js",
     "test": "jest --coverage",
-    "generate-secret": "node scripts/generateSecret.js"
+    "generate-secret": "node scripts/generateSecret.js",
+    "proxy": "node scripts/local-proxy.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
