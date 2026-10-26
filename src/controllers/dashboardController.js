@@ -1,6 +1,7 @@
 const Person = require("../models/Person");
 const Transaction = require("../models/Transaction");
 const CashBank = require("../models/CashBank");
+const { calculatePersonStats, aggregateSectionTotals, toPaise, fromPaise } = require("../utils/moneyCalculator");
 
 /**
  * Get dashboard statistics
@@ -28,30 +29,16 @@ exports.getDashboardStats = async (req, res) => {
 
     // Calculate totals for each section
     const calculateSectionTotal = async (persons) => {
-      let total = 0;
-      let pending = 0;
-      let completed = 0;
-
-      for (const person of persons) {
-        const transactions = await Transaction.find({
-          personId: person._id,
-          userId,
-        });
-
-        const personTotal = transactions.reduce((sum, t) => sum + t.amount, 0);
-        const personPending = transactions
-          .filter((t) => t.status === "pending")
-          .reduce((sum, t) => sum + t.amount, 0);
-        const personCompleted = transactions
-          .filter((t) => t.status === "completed")
-          .reduce((sum, t) => sum + t.amount, 0);
-
-        total += personTotal;
-        pending += personPending;
-        completed += personCompleted;
-      }
-
-      return { total, pending, completed };
+      const personsWithStats = await Promise.all(
+        persons.map(async (person) => {
+          const transactions = await Transaction.find({
+            personId: person._id,
+            userId,
+          });
+          return { stats: calculatePersonStats(transactions) };
+        })
+      );
+      return aggregateSectionTotals(personsWithStats);
     };
 
     const [lending, borrowing, earnings, expenses, interest] =
@@ -63,11 +50,20 @@ exports.getDashboardStats = async (req, res) => {
         calculateSectionTotal(interestPersons),
       ]);
 
-    // Calculate net balance: Pending Lending - Pending Borrowing
-    const netBalance = lending.pending - borrowing.pending;
+    // Net Receivable: Pending Lent - Pending Borrowed (in integer paise)
+    const netReceivablePaise = toPaise(lending.pending) - toPaise(borrowing.pending);
+    const netReceivable = fromPaise(netReceivablePaise);
 
-    // Total available cash
-    const totalCash = (cashBank?.cash || 0) + (cashBank?.bank || 0);
+    // Total available cash & bank
+    const totalCashPaise = toPaise(cashBank?.cash || 0) + toPaise(cashBank?.bank || 0);
+    const totalCash = fromPaise(totalCashPaise);
+
+    // Liquid Cash Position (Cash + Bank)
+    const cashPosition = totalCash;
+
+    // Comprehensive Net Worth: Cash + Bank + Total Earnings - Total Expenses + Net Receivable
+    const netWorthPaise = totalCashPaise + toPaise(earnings.completed) - toPaise(expenses.completed) + netReceivablePaise;
+    const netWorth = fromPaise(netWorthPaise);
 
     res.json({
       success: true,
@@ -82,8 +78,14 @@ exports.getDashboardStats = async (req, res) => {
           bank: cashBank?.bank || 0,
           total: totalCash,
         },
-        netBalance,
+        netBalance: netReceivable,
+        netReceivable,
+        cashPosition,
+        netWorth,
         summary: {
+          netReceivable,
+          cashPosition,
+          netWorth,
           totalLent: lending.total,
           totalBorrowed: borrowing.total,
           pendingLent: lending.pending,

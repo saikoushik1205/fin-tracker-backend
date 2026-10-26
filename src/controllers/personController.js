@@ -1,6 +1,7 @@
 const Person = require("../models/Person");
 const Transaction = require("../models/Transaction");
 const mongoose = require("mongoose");
+const { calculatePersonStats } = require("../utils/moneyCalculator");
 
 /**
  * Get all persons for a specific section
@@ -24,22 +25,11 @@ exports.getPersonsBySection = async (req, res) => {
           userId,
         });
 
-        const total = transactions.reduce((sum, t) => sum + t.amount, 0);
-        const pending = transactions
-          .filter((t) => t.status === "pending")
-          .reduce((sum, t) => sum + t.amount, 0);
-        const completed = transactions
-          .filter((t) => t.status === "completed")
-          .reduce((sum, t) => sum + t.amount, 0);
+        const stats = calculatePersonStats(transactions);
 
         return {
           ...person.toObject(),
-          stats: {
-            transactionCount: transactions.length,
-            total,
-            pending,
-            completed,
-          },
+          stats,
         };
       })
     );
@@ -83,16 +73,7 @@ exports.getPersonById = async (req, res) => {
       userId,
     }).sort({ date: -1 });
 
-    const stats = {
-      transactionCount: transactions.length,
-      total: transactions.reduce((sum, t) => sum + t.amount, 0),
-      pending: transactions
-        .filter((t) => t.status === "pending")
-        .reduce((sum, t) => sum + t.amount, 0),
-      completed: transactions
-        .filter((t) => t.status === "completed")
-        .reduce((sum, t) => sum + t.amount, 0),
-    };
+    const stats = calculatePersonStats(transactions);
 
     res.json({
       success: true,
