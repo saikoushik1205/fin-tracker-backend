@@ -19,24 +19,31 @@ const fromPaise = (paise) => {
  */
 const isSettlementTransaction = (t) => {
   if (!t) return false;
+  // A transaction with pending status can NEVER be a settlement or returned payment
+  if (t.status === "pending") return false;
+
   const type = (t.type || "").trim().toLowerCase();
   if (type === "repayment") return true;
+
+  if (t.metadata && (t.metadata.isSettlement === true || t.metadata.loanId)) {
+    return true;
+  }
+
   const remarks = (t.remarks || "").trim();
   if (
     remarks.startsWith("Settlement received") ||
     remarks.startsWith("Settlement repaid") ||
-    remarks.startsWith("Settlement paid") ||
-    remarks.includes("Settled via") ||
-    remarks.includes("Repaid via")
+    remarks.startsWith("Settlement paid")
   ) {
     return true;
   }
+
   return false;
 };
 
 /**
  * Calculates person/ledger totals:
- * - Total: Sum of active transactions (excluding separate settlement entries)
+ * - Total: Sum of active loan transactions (excluding separate settlement entries)
  * - Completed: Sum of settlements + legacy completed transactions
  * - Pending: Remaining unpaid balance (Total - Completed)
  * 

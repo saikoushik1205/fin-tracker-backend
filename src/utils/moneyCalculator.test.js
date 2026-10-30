@@ -99,6 +99,33 @@ describe("Money Calculator Utility (Backend)", () => {
       expect(res.pending).toBe(100.25);
       expect(res.pending).toBe(Number((res.total - res.completed).toFixed(2)));
     });
+
+    test("accurately calculates settlements without misclassifying pending loans that mention settled via", () => {
+      const txs = [
+        {
+          amount: 426,
+          status: "completed",
+          type: "repayment",
+          remarks: "Settlement received: ₹426 via UPI / Online - PAY-PAL TRANSFER",
+        },
+        { amount: 604, status: "pending", remarks: "Nothing Charger Order" },
+        {
+          amount: 5385,
+          status: "pending",
+          remarks: "Mobile Order (Remaining pending after partial settlement)",
+        },
+        {
+          amount: 300,
+          status: "pending",
+          remarks: "Transfer | Settled via UPI / Online",
+        },
+      ];
+      const res = calculatePersonStats(txs);
+      expect(res.total).toBe(6289);
+      expect(res.completed).toBe(426);
+      expect(res.pending).toBe(5863);
+      expect(res.transactionCount).toBe(4);
+    });
   });
 
   describe("aggregateSectionTotals", () => {
